@@ -1,37 +1,108 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:driver/firebase_options.dart';
+import 'package:driver/utils/app_theme.dart';
+import 'package:driver/controllers/auth_controller.dart';
+import 'package:driver/views/login_screen.dart';
+import 'package:driver/views/signup_screen.dart';
+import 'package:driver/views/home_screen.dart';
+import 'package:driver/views/start_ride_screen.dart';
+import 'package:driver/views/ride_in_progress_screen.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
   runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
-  // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Flutter Demo',
-      theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // TRY THIS: Try running your application with "flutter run". You'll see
-        // the application has a purple toolbar. Then, without quitting the app,
-        // try changing the seedColor in the colorScheme below to Colors.green
-        // and then invoke "hot reload" (save your changes or press the "hot
-        // reload" button in a Flutter-supported IDE, or press "r" if you used
-        // the command line to start the app).
-        //
-        // Notice that the counter didn't reset back to zero; the application
-        // state is not lost during the reload. To reset the state, use hot
-        // restart instead.
-        //
-        // This works for code too, not just values: Most code changes can be
-        // tested with just a hot reload.
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-        useMaterial3: true,
+    // Initialize services and controllers
+    Get.put(AuthController());
+
+    return GetMaterialApp(
+      title: 'Driver App',
+      theme: AppTheme.lightTheme,
+      home: const SplashScreen(),
+      getPages: [
+        GetPage(name: '/login', page: () => const LoginScreen()),
+        GetPage(name: '/signup', page: () => const SignUpScreen()),
+        GetPage(name: '/home', page: () => const HomeScreen()),
+        GetPage(name: '/start-ride', page: () => const StartRideScreen()),
+        GetPage(name: '/ride-in-progress', page: () => const RideInProgressScreen()),
+      ],
+      debugShowCheckedModeBanner: false,
+    );
+  }
+}
+
+class SplashScreen extends StatefulWidget {
+  const SplashScreen({Key? key}) : super(key: key);
+
+  @override
+  State<SplashScreen> createState() => _SplashScreenState();
+}
+
+class _SplashScreenState extends State<SplashScreen> {
+  final AuthController _authController = Get.find();
+
+  @override
+  void initState() {
+    super.initState();
+    _checkAuthStatus();
+  }
+
+  void _checkAuthStatus() async {
+    await Future.delayed(const Duration(seconds: 2));
+
+    if (_authController.isAuthenticated.value) {
+      Get.offNamed('/home');
+    } else {
+      Get.offNamed('/login');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.primaryBlack,
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 100,
+              height: 100,
+              decoration: BoxDecoration(
+                gradient: AppColors.primaryGradient,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: const Icon(
+                Icons.directions_car,
+                size: 60,
+                color: AppColors.primaryBlack,
+              ),
+            ),
+            const SizedBox(height: 24),
+            Text(
+              'Driver App',
+              style: Theme.of(context).textTheme.displayMedium?.copyWith(
+                    color: AppColors.primaryYellow,
+                  ),
+            ),
+            const SizedBox(height: 16),
+            const CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(AppColors.primaryYellow),
+            ),
+          ],
+        ),
       ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
     );
   }
 }
