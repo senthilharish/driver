@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:driver/controllers/auth_controller.dart';
 import 'package:driver/controllers/ride_controller.dart';
+import 'package:driver/controllers/booking_controller.dart';
+import 'package:driver/models/booking_model.dart';
 import 'package:driver/utils/app_theme.dart';
 import 'package:driver/widgets/custom_widgets.dart';
+import 'package:driver/widgets/booking_notification_popup.dart';
 
 class RideInProgressScreen extends StatefulWidget {
   const RideInProgressScreen({Key? key}) : super(key: key);
@@ -15,17 +18,193 @@ class RideInProgressScreen extends StatefulWidget {
 class _RideInProgressScreenState extends State<RideInProgressScreen> {
   final AuthController _authController = Get.find();
   final RideController _rideController = Get.find();
+  final BookingController _bookingController = Get.put(BookingController());
   final _destinationLatController = TextEditingController();
   final _destinationLongController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    // Display current location from driver model
-    if (_authController.currentDriver.value != null) {
-      final driver = _authController.currentDriver.value!;
-      print('Current Driver Location - Lat: ${driver.latitude}, Long: ${driver.longitude}');
+    print('[RideInProgressScreen] 🚀 Screen initialized');
+    
+    // Start listening for bookings immediately
+    _startBookingListener();
+  }
+
+  void _startBookingListener() {
+    print('[RideInProgressScreen] 👂 Starting real-time booking listener...');
+    
+    // Get driver ID from auth controller
+    final driverId = _authController.currentDriver.value?.uid ?? '';
+    print('[RideInProgressScreen] 🆔 Driver ID: $driverId');
+    
+    if (driverId.isEmpty) {
+      print('[RideInProgressScreen] ⚠️ Driver ID is empty, cannot start listener');
+      return;
     }
+    
+    // Create controller
+    final bookingController = Get.put(BookingController());
+    
+    // Start real-time listening to bookings
+    bookingController.startListeningWithNotifications(driverId);
+    
+    // Watch for booking changes
+    ever(bookingController.currentBooking, (booking) {
+      print('[RideInProgressScreen] 🔔 Booking changed: ${booking?.bookingId}');
+      
+      if (booking != null && mounted) {
+        print('[RideInProgressScreen] 📲 Showing popup for: ${booking.bookingId}');
+        _showBookingPopup(booking, bookingController);
+      }
+    });
+  }
+
+  void _showBookingPopup(BookingModel booking, BookingController controller) {
+    print('[RideInProgressScreen] 🔴 Showing popup...');
+    
+    showModalBottomSheet(
+      context: context,
+      isDismissible: false,
+      enableDrag: false,
+      backgroundColor: Colors.transparent,
+      builder: (bottomSheetContext) => Obx(
+        () => BookingNotificationPopup(
+          booking: booking,
+          isLoading: controller.isLoading.value,
+          onAccept: () async {
+            final rideId = _rideController.currentRide.value?.rideId;
+            if (rideId != null) {
+              print('[RideInProgressScreen] ➡️ Accepting booking...');
+              await controller.acceptBooking(rideId);
+              
+              // Reduce available seats after accepting
+              print('[RideInProgressScreen] ✅ Booking accepted, reducing available seats');
+              _rideController.reduceAvailableSeats(booking.seatsBooked);
+              
+              // Pop the booking popup
+              if (mounted) {
+                Navigator.of(bottomSheetContext).pop();
+                print('[RideInProgressScreen] 🔔 Booking popup closed');
+                
+                // Show success message
+                _showActionMenu(context, 'Booking Accepted!', 'Seats allocated: ${booking.seatsBooked}\nAvailable seats: ${_rideController.availableSeats.value}');
+              }
+            }
+          },
+          onReject: () async {
+            print('[RideInProgressScreen] ➡️ Rejecting booking...');
+            await controller.rejectBooking();
+            
+            // Pop the booking popup
+            if (mounted) {
+              Navigator.of(bottomSheetContext).pop();
+              print('[RideInProgressScreen] 🔔 Booking popup closed');
+              
+              // Show rejection message
+              _showActionMenu(context, 'Booking Rejected!', 'Passenger will be notified');
+            }
+          },
+        ),
+      ),
+    );
+  }
+
+  void _showActionMenu(BuildContext context, String title, String message) {
+    print('[RideInProgressScreen] ===== SHOWING ACTION MENU =====');
+    print('[RideInProgressScreen] Title: $title');
+    print('[RideInProgressScreen] Message: $message');
+    
+    showModalBottomSheet(
+      context: context,
+      isDismissible: true,
+      enableDrag: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(AppRadius.lg),
+            topRight: Radius.circular(AppRadius.lg),
+          ),
+        ),
+        padding: const EdgeInsets.all(AppPadding.lg),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Handle indicator
+            Container(
+              width: 40,
+              height: 5,
+              decoration: BoxDecoration(
+                color: AppColors.mediumGray,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              margin: const EdgeInsets.only(bottom: AppPadding.lg),
+            ),
+            
+            // Success icon
+            Container(
+              padding: const EdgeInsets.all(AppPadding.lg),
+              decoration: BoxDecoration(
+                color: AppColors.successGreen.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(AppRadius.lg),
+              ),
+              child: const Icon(
+                Icons.check_circle,
+                color: AppColors.successGreen,
+                size: 50,
+              ),
+            ),
+            const SizedBox(height: AppPadding.lg),
+            
+            // Title
+            Text(
+              title,
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: AppColors.primaryBlack,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: AppPadding.md),
+            
+            // Message
+            Text(
+              message,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: AppColors.mediumGray,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: AppPadding.xl),
+            
+            // Continue button
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  print('[RideInProgressScreen] Action menu closed, ready for next booking');
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primaryYellow,
+                  foregroundColor: AppColors.primaryBlack,
+                  padding: const EdgeInsets.symmetric(vertical: AppPadding.md),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(AppRadius.md),
+                  ),
+                ),
+                child: const Text(
+                  'Continue',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -387,6 +566,27 @@ class _RideInProgressScreenState extends State<RideInProgressScreen> {
                   const SizedBox(height: AppPadding.md),
                   _buildDetailCard(
                     context,
+                    icon: Icons.event_seat,
+                    label: 'Total Seats',
+                    value: '${_rideController.numberOfPassengers.value}',
+                  ),
+                  const SizedBox(height: AppPadding.md),
+                  _buildDetailCard(
+                    context,
+                    icon: Icons.person,
+                    label: 'Seats Allocated',
+                    value: '${_rideController.numberOfPassengersAllocated.value}',
+                  ),
+                  const SizedBox(height: AppPadding.md),
+                  _buildDetailCard(
+                    context,
+                    icon: Icons.airline_seat_flat_angled,
+                    label: 'Available Seats',
+                    value: '${_rideController.availableSeats.value}',
+                  ),
+                  const SizedBox(height: AppPadding.md),
+                  _buildDetailCard(
+                    context,
                     icon: Icons.straighten,
                     label: 'Distance',
                     value:
@@ -447,6 +647,28 @@ class _RideInProgressScreenState extends State<RideInProgressScreen> {
                     ),
                   ),
                   const SizedBox(height: AppPadding.xl),
+                  
+                  // View Route Button
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        Get.toNamed('/ride-route-map');
+                      },
+                      icon: const Icon(Icons.map),
+                      label: const Text('View Route on Map'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primaryYellow,
+                        foregroundColor: AppColors.primaryBlack,
+                        padding: const EdgeInsets.symmetric(vertical: AppPadding.md),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(AppRadius.md),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: AppPadding.xl),
+                  
                   CustomButton(
                     label: _rideController.isLoading.value
                         ? 'Completing...'
@@ -454,6 +676,24 @@ class _RideInProgressScreenState extends State<RideInProgressScreen> {
                     onPressed: _handleCompleteRide,
                     isLoading: _rideController.isLoading.value,
                     isEnabled: !_rideController.isLoading.value,
+                  ),
+                  const SizedBox(height: AppPadding.md),
+                  
+                  // DEBUG: Test Popup Button
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        print('[DEBUG] Test button pressed - triggering popup');
+                        _bookingController.testBookingPopup();
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.orange,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: AppPadding.md),
+                      ),
+                      child: const Text('🧪 TEST: Show Booking Popup'),
+                    ),
                   ),
                 ],
               ],

@@ -4,6 +4,7 @@ import 'package:driver/controllers/auth_controller.dart';
 import 'package:driver/controllers/ride_controller.dart';
 import 'package:driver/utils/app_theme.dart';
 import 'package:driver/widgets/custom_widgets.dart';
+import 'package:driver/views/map_destination_selector.dart';
 
 class StartRideScreen extends StatefulWidget {
   const StartRideScreen({Key? key}) : super(key: key);
@@ -14,9 +15,11 @@ class StartRideScreen extends StatefulWidget {
 
 class _StartRideScreenState extends State<StartRideScreen> {
   final AuthController _authController = Get.find();
-  final RideController _rideController = Get.put(RideController());
+  final RideController _rideController = Get.find();
   final RxInt _selectedPassengers = 1.obs;
   final _basePriceController = TextEditingController(text: '100');
+  final RxString _destinationAddress = 'Tap to select on map'.obs;
+  final RxBool _hasDestination = false.obs;
 
   @override
   void initState() {
@@ -46,13 +49,13 @@ class _StartRideScreenState extends State<StartRideScreen> {
     print('[StartRideScreen] Base price: $basePrice');
     
     double destLat = _rideController.destinationLatitude.value;
-    double destLong = _rideController.destinationLongitude.value;
-    print('[StartRideScreen] Destination Lat: $destLat, Long: $destLong');
+    double destLng = _rideController.destinationLongitude.value;
+    print('[StartRideScreen] Destination Lat: $destLat, Long: $destLng');
 
-    // Validate destination coordinates
-    if (destLat == 0.0 || destLong == 0.0) {
-      print('[StartRideScreen] ERROR: Destination coordinates are zero');
-      _showErrorDialog('Missing Information', 'Please enter destination latitude and longitude');
+    // Validate destination has been selected
+    if (!_hasDestination.value) {
+      print('[StartRideScreen] ERROR: No destination selected');
+      _showErrorDialog('Missing Information', 'Please select destination location on map');
       return;
     }
 
@@ -62,7 +65,7 @@ class _StartRideScreenState extends State<StartRideScreen> {
       passengers: _selectedPassengers.value,
       basePrice: basePrice,
       destinationLat: destLat,
-      destinationLong: destLong,
+      destinationLong: destLng,
     );
 
     print('[StartRideScreen] startRide returned: $success');
@@ -187,44 +190,82 @@ class _StartRideScreenState extends State<StartRideScreen> {
                 ),
                 const SizedBox(height: AppPadding.xl),
 
-                // Destination Latitude
+                // Destination Selection
                 Text(
-                  'Destination Latitude',
+                  'Destination Location',
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
                 const SizedBox(height: AppPadding.md),
-                TextFormField(
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
-                  onChanged: (value) {
-                    _rideController.setDestinationLatitude(double.tryParse(value) ?? 0.0);
-                  },
-                  decoration: InputDecoration(
-                    hintText: 'e.g., 28.5355',
-                    prefixIcon: const Icon(
-                      Icons.map,
-                      color: AppColors.primaryYellow,
+                
+                // Destination display card
+                Obx(() => Container(
+                  padding: const EdgeInsets.all(AppPadding.md),
+                  decoration: BoxDecoration(
+                    color: _hasDestination.value 
+                        ? AppColors.primaryYellow.withOpacity(0.1)
+                        : Colors.grey.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(AppRadius.md),
+                    border: Border.all(
+                      color: _hasDestination.value 
+                          ? AppColors.primaryYellow 
+                          : Colors.grey,
+                      width: 1,
                     ),
                   ),
-                ),
-                const SizedBox(height: AppPadding.lg),
-
-                // Destination Longitude
-                Text(
-                  'Destination Longitude',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (_hasDestination.value) ...[
+                        Text(
+                          'Selected Destination:',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: Colors.grey,
+                          ),
+                        ),
+                        const SizedBox(height: AppPadding.sm),
+                        Text(
+                          _destinationAddress.value,
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.w500,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: AppPadding.sm),
+                        Text(
+                          'Lat: ${_rideController.destinationLatitude.value.toStringAsFixed(4)}, '
+                          'Long: ${_rideController.destinationLongitude.value.toStringAsFixed(4)}',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: Colors.grey,
+                          ),
+                        ),
+                      ] else
+                        Text(
+                          'Tap button below to select destination on map',
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: Colors.grey,
+                          ),
+                        ),
+                    ],
+                  ),
+                )),
                 const SizedBox(height: AppPadding.md),
-                TextFormField(
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
-                  onChanged: (value) {
-                    _rideController.setDestinationLongitude(double.tryParse(value) ?? 0.0);
-                  },
-                  decoration: InputDecoration(
-                    hintText: 'e.g., 77.3910',
-                    prefixIcon: const Icon(
-                      Icons.map,
-                      color: AppColors.primaryYellow,
+                
+                // Map selection button
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    icon: const Icon(Icons.map),
+                    label: const Text('Select on Map'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primaryYellow,
+                      foregroundColor: AppColors.primaryBlack,
+                      padding: const EdgeInsets.symmetric(vertical: AppPadding.md),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(AppRadius.md),
+                      ),
                     ),
+                    onPressed: _selectDestinationOnMap,
                   ),
                 ),
                 const SizedBox(height: AppPadding.xl),
@@ -315,6 +356,47 @@ class _StartRideScreenState extends State<StartRideScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  Future<void> _selectDestinationOnMap() async {
+    print('[StartRideScreen] Opening map destination selector...');
+    try {
+      final result = await Get.to(() => const MapDestinationSelector());
+      
+      if (result != null && result is Map) {
+        print('[StartRideScreen] Map result received: $result');
+        
+        final latitude = result['latitude'] as double?;
+        final longitude = result['longitude'] as double?;
+        final address = result['address'] as String?;
+        
+        if (latitude != null && longitude != null) {
+          print('[StartRideScreen] Updating destination - Lat: $latitude, Long: $longitude, Address: $address');
+          
+          _rideController.setDestinationLatitude(latitude);
+          _rideController.setDestinationLongitude(longitude);
+          _destinationAddress.value = address ?? 'Selected Location';
+          _hasDestination.value = true;
+          
+          print('[StartRideScreen] Destination updated successfully');
+          _showSuccessSnackbar('Destination Selected', address ?? 'Location set on map');
+        }
+      }
+    } catch (e) {
+      print('[StartRideScreen] Error selecting destination: $e');
+      _showErrorDialog('Map Error', 'Failed to select destination: $e');
+    }
+  }
+
+  void _showSuccessSnackbar(String title, String message) {
+    Get.snackbar(
+      title,
+      message,
+      snackPosition: SnackPosition.BOTTOM,
+      backgroundColor: AppColors.successGreen,
+      colorText: Colors.white,
+      duration: const Duration(seconds: 2),
     );
   }
 

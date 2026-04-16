@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:driver/controllers/auth_controller.dart';
+import 'package:driver/controllers/booking_controller.dart';
+import 'package:driver/models/booking_model.dart';
 import 'package:driver/utils/app_theme.dart';
 import 'package:driver/widgets/custom_widgets.dart';
+import 'package:driver/widgets/booking_notification_popup.dart';
 import 'package:intl/intl.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -14,6 +17,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final AuthController _authController = Get.find();
+  final BookingController _bookingController = Get.find();
   late DateTime _currentTime;
 
   @override
@@ -21,6 +25,78 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     _currentTime = DateTime.now();
     _startClock();
+    _setupBookingListener();
+  }
+
+  void _setupBookingListener() {
+    // Start real-time listening for bookings when home screen is loaded
+    final driverId = _authController.currentDriver.value?.uid ?? '';
+    if (driverId.isNotEmpty) {
+      print('[HomeScreen] 🔌 Setting up real-time booking listener');
+      print('[HomeScreen] 🆔 Driver ID: $driverId');
+      
+      // Use real-time listener instead of polling
+      _bookingController.startListeningWithNotifications(driverId);
+      
+      // Watch for new bookings and show popup
+      ever(_bookingController.currentBooking, (booking) {
+        if (booking != null && mounted) {
+          print('[HomeScreen] 📲 New booking received, showing popup');
+          _showBookingPopup(booking);
+        }
+      });
+    } else {
+      print('[HomeScreen] ⚠️ Driver ID is empty, cannot start listener');
+    }
+  }
+
+  @override
+  void dispose() {
+    print('[HomeScreen] 🛑 Disposing home screen');
+    // Listener will continue - no need to stop it here
+    // (It's tied to the BookingController lifecycle)
+    super.dispose();
+  }
+
+  void _showBookingPopup(BookingModel booking) {
+    showModalBottomSheet(
+      context: context,
+      isDismissible: false,
+      enableDrag: false,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Obx(
+        () => BookingNotificationPopup(
+          booking: booking,
+          isLoading: _bookingController.isLoading.value,
+          onAccept: () async {
+            await _bookingController.acceptBooking('');
+            if (mounted) {
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Booking accepted! Ride started.'),
+                  backgroundColor: Colors.green,
+                  duration: Duration(seconds: 2),
+                ),
+              );
+            }
+          },
+          onReject: () async {
+            await _bookingController.rejectBooking();
+            if (mounted) {
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Booking declined.'),
+                  backgroundColor: Colors.orange,
+                  duration: Duration(seconds: 2),
+                ),
+              );
+            }
+          },
+        ),
+      ),
+    );
   }
 
   void _startClock() {
@@ -175,6 +251,92 @@ class _HomeScreenState extends State<HomeScreen> {
                   label: 'Start New Ride',
                   onPressed: () => Get.toNamed('/start-ride'),
                   height: 60,
+                ),
+                const SizedBox(height: AppPadding.xl),
+
+                // Polling Status Card
+                Obx(
+                  () => Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(AppPadding.md),
+                    decoration: BoxDecoration(
+                      color: _bookingController.pollingActive.value
+                          ? Colors.green.withOpacity(0.1)
+                          : Colors.red.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(AppRadius.md),
+                      border: Border.all(
+                        color: _bookingController.pollingActive.value
+                            ? Colors.green
+                            : Colors.red,
+                        width: 1,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(AppPadding.md),
+                          decoration: BoxDecoration(
+                            color: _bookingController.pollingActive.value
+                                ? Colors.green.withOpacity(0.2)
+                                : Colors.red.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(AppRadius.md),
+                          ),
+                          child: _bookingController.pollingActive.value
+                              ? const SizedBox(
+                                  height: 24,
+                                  width: 24,
+                                  child: CircularProgressIndicator(
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                        Colors.green),
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(
+                                  Icons.sync_disabled,
+                                  color: Colors.red,
+                                ),
+                        ),
+                        const SizedBox(width: AppPadding.md),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Booking Polling Status',
+                                style:
+                                    Theme.of(context).textTheme.bodySmall?.copyWith(
+                                          color: AppColors.mediumGray,
+                                        ),
+                              ),
+                              const SizedBox(height: AppPadding.xs),
+                              Text(
+                                _bookingController.pollingActive.value
+                                    ? '🟢 Active - Checking every 5 seconds'
+                                    : '🔴 Inactive',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .titleMedium
+                                    ?.copyWith(
+                                      color: _bookingController.pollingActive.value
+                                          ? Colors.green
+                                          : Colors.red,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                              ),
+                              if (_bookingController.lastPolledTime.value.isNotEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 4),
+                                  child: Text(
+                                    'Last polled: ${_bookingController.lastPolledTime.value.substring(11, 19)}',
+                                    style: Theme.of(context).textTheme.bodySmall,
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
                 const SizedBox(height: AppPadding.xl),
 

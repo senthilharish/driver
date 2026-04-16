@@ -4,17 +4,26 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:driver/firebase_options.dart';
 import 'package:driver/utils/app_theme.dart';
 import 'package:driver/controllers/auth_controller.dart';
+import 'package:driver/controllers/ride_controller.dart';
+import 'package:driver/controllers/booking_controller.dart';
 import 'package:driver/views/login_screen.dart';
 import 'package:driver/views/signup_screen.dart';
 import 'package:driver/views/home_screen.dart';
 import 'package:driver/views/start_ride_screen.dart';
 import 'package:driver/views/ride_in_progress_screen.dart';
+import 'package:driver/views/ride_route_map_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+  
+  // Register controllers globally
+  Get.put(AuthController());
+  Get.put(RideController());
+  Get.put(BookingController());
+  
   runApp(const MyApp());
 }
 
@@ -36,6 +45,7 @@ class MyApp extends StatelessWidget {
         GetPage(name: '/home', page: () => const HomeScreen()),
         GetPage(name: '/start-ride', page: () => const StartRideScreen()),
         GetPage(name: '/ride-in-progress', page: () => const RideInProgressScreen()),
+        GetPage(name: '/ride-route-map', page: () => const RideRouteMapScreen()),
       ],
       debugShowCheckedModeBanner: false,
     );

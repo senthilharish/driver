@@ -8,6 +8,7 @@ class RideModel {
   final double? destinationLongitude;
   final String? destinationAddress;
   final int numberOfPassengers;
+  final int numberOfPassengersAllocated;
   final double basePrice;
   final double? additionalPrice;
   final double? totalPrice;
@@ -28,6 +29,7 @@ class RideModel {
     this.destinationLongitude,
     this.destinationAddress,
     required this.numberOfPassengers,
+    this.numberOfPassengersAllocated = 0,
     required this.basePrice,
     this.additionalPrice,
     this.totalPrice,
@@ -51,6 +53,7 @@ class RideModel {
       'destinationLongitude': destinationLongitude,
       'destinationAddress': destinationAddress,
       'numberOfPassengers': numberOfPassengers,
+      'numberOfPassengersAllocated': numberOfPassengersAllocated,
       'basePrice': basePrice,
       'additionalPrice': additionalPrice,
       'totalPrice': totalPrice,
@@ -77,6 +80,7 @@ class RideModel {
           json['destinationLongitude'] != null ? json['destinationLongitude'] as double : null,
       destinationAddress: json['destinationAddress'] as String?,
       numberOfPassengers: json['numberOfPassengers'] ?? 1,
+      numberOfPassengersAllocated: json['numberOfPassengersAllocated'] ?? 0,
       basePrice: (json['basePrice'] ?? 0.0).toDouble(),
       additionalPrice:
           json['additionalPrice'] != null ? (json['additionalPrice'] as num).toDouble() : null,
@@ -106,6 +110,7 @@ class RideModel {
     double? destinationLongitude,
     String? destinationAddress,
     int? numberOfPassengers,
+    int? numberOfPassengersAllocated,
     double? basePrice,
     double? additionalPrice,
     double? totalPrice,
@@ -126,6 +131,7 @@ class RideModel {
       destinationLongitude: destinationLongitude ?? this.destinationLongitude,
       destinationAddress: destinationAddress ?? this.destinationAddress,
       numberOfPassengers: numberOfPassengers ?? this.numberOfPassengers,
+      numberOfPassengersAllocated: numberOfPassengersAllocated ?? this.numberOfPassengersAllocated,
       basePrice: basePrice ?? this.basePrice,
       additionalPrice: additionalPrice ?? this.additionalPrice,
       totalPrice: totalPrice ?? this.totalPrice,

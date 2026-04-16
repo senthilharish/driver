@@ -17,6 +17,8 @@ class RideController extends GetxController {
   final RxString startAddress = 'Getting location...'.obs;
   final RxString destinationAddress = 'Not set'.obs;
   final RxInt numberOfPassengers = 1.obs;
+  final RxInt numberOfPassengersAllocated = 0.obs;
+  final RxInt availableSeats = 0.obs;
   final RxDouble basePrice = 100.0.obs;
   final RxDouble totalPrice = 0.0.obs;
   final RxBool rideInProgress = false.obs;
@@ -113,9 +115,12 @@ class RideController extends GetxController {
 
       currentRide.value = ride;
       numberOfPassengers.value = passengers;
+      availableSeats.value = passengers;
+      numberOfPassengersAllocated.value = 0;
       this.basePrice.value = basePrice;
       rideInProgress.value = true;
       print('[RideController] Ride controller state updated');
+      print('[RideController] Available seats: ${availableSeats.value}');
 
       // Save to database
       print('[RideController] Saving ride to database...');
@@ -280,6 +285,12 @@ class RideController extends GetxController {
     }
   }
 
+  // Update number of passengers allocated
+  void updateNumberOfPassengersAllocated(int count) {
+    numberOfPassengersAllocated.value = count;
+    print('[RideController] Passengers allocated updated to: $count');
+  }
+
   // Complete the ride
   Future<bool> completeRide() async {
     try {
@@ -370,6 +381,20 @@ class RideController extends GetxController {
     rideDuration.value = 0;
     currentRide.value = null;
     errorMessage.value = '';
+    availableSeats.value = 0;
+    numberOfPassengersAllocated.value = 0;
     _rideManagementService.resetCurrentRide();
   }
+
+  /// Reduce available seats when a booking is accepted
+  void reduceAvailableSeats(int seatsBooked) {
+    print('[RideController] 📉 Reducing available seats by $seatsBooked');
+    print('[RideController] Before: Available = ${availableSeats.value}, Allocated = ${numberOfPassengersAllocated.value}');
+    
+    availableSeats.value -= seatsBooked;
+    numberOfPassengersAllocated.value += seatsBooked;
+    
+    print('[RideController] After: Available = ${availableSeats.value}, Allocated = ${numberOfPassengersAllocated.value}');
+  }
 }
+
